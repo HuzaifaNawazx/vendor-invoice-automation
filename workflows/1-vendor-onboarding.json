@@ -1,0 +1,844 @@
+{
+  "name": "Vendor Onboarding flow (Hardened)",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_VENDOR_DATABASE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1588530571,
+          "mode": "list",
+          "cachedResultName": "Form Responses 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_VENDOR_DATABASE_SHEET_ID/edit#gid=1588530571"
+        },
+        "event": "rowAdded",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        -880,
+        -80
+      ],
+      "id": "1e79534b-b61f-44f8-922a-27f2960dbf3a",
+      "name": "Google Sheets Trigger",
+      "credentials": {
+        "googleSheetsTriggerOAuth2Api": {
+          "id": "qvefW7fjMJ1rWj2Z",
+          "name": "Google Sheets Trigger account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "vendor_name",
+              "value": "={{ $json['Name:'] }}",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "email",
+              "value": "={{ ($json['Email:'] || '').trim().toLowerCase() }}",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "contact_no",
+              "value": "={{ $json['Contact:'] }}",
+              "type": "string"
+            },
+            {
+              "id": "a4",
+              "name": "bank_name",
+              "value": "={{ $json['Bank Name:'] }}",
+              "type": "string"
+            },
+            {
+              "id": "a5",
+              "name": "account_name",
+              "value": "={{ $json['Bank Account Name:'] }}",
+              "type": "string"
+            },
+            {
+              "id": "a6",
+              "name": "account_no",
+              "value": "={{ $json['Account No:'] }}",
+              "type": "string"
+            },
+            {
+              "id": "a7",
+              "name": "vendor_category",
+              "value": "={{ $json['Vendor Category:'] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -680,
+        -80
+      ],
+      "id": "88c54cd5-89db-42a3-92e5-f4920bf57fc2",
+      "name": "Extract Form Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "function simpleHash(str) {\n  let hash = 0;\n  for (let i = 0; i < str.length; i++) {\n    hash = (Math.imul(31, hash) + str.charCodeAt(i)) | 0;\n  }\n  return Math.abs(hash).toString(36).toUpperCase();\n}\n\nconst email = ($json.email || '').trim().toLowerCase();\nif (!email) {\n  throw new Error('Vendor onboarding row is missing an Email value - cannot generate a stable vendor_id.');\n}\nconst vendor_id = `VEND-${simpleHash(email)}`;\n\nreturn [{ json: { ...$json, vendor_id } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        -80
+      ],
+      "id": "8174d15b-2985-425d-b09a-f8560491ff20",
+      "name": "Generate Vendor ID (Deterministic)"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_VENDOR_DATABASE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_VENDOR_DATABASE_SHEET_ID/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "vendor_id",
+              "lookupValue": "={{ $json.vendor_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -280,
+        -80
+      ],
+      "id": "67e86069-91e7-4bfa-81ad-73cc9305933d",
+      "name": "Check Existing Vendor",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Vc6pInLJ7NEfMmRR",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $items(\"Check Existing Vendor\").length }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -80,
+        -80
+      ],
+      "id": "d379f794-2785-485d-9b84-1d89c830ef4b",
+      "name": "Vendor Already Exists?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b1",
+              "name": "vendor_api_key",
+              "value": "={{ $('Check Existing Vendor').item.json.vendor_api_key }}",
+              "type": "string"
+            },
+            {
+              "id": "b2",
+              "name": "status",
+              "value": "={{ $('Check Existing Vendor').item.json.status }}",
+              "type": "string"
+            },
+            {
+              "id": "b3",
+              "name": "registration_date",
+              "value": "={{ $('Check Existing Vendor').item.json.registration_date }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        120,
+        -260
+      ],
+      "id": "f077b20a-0361-44d3-81f9-c99dcd86a0c6",
+      "name": "Reuse Existing Credentials"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_VENDOR_DATABASE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_VENDOR_DATABASE_SHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "vendor_id": "={{ $json.vendor_id }}",
+            "vendor_name": "={{ $json.vendor_name }}",
+            "contact_no": "={{ $json.contact_no }}",
+            "email": "={{ $json.email }}",
+            "bank_name": "={{ $json.bank_name }}",
+            "account_name": "={{ $json.account_name }}",
+            "account_no": "={{ $json.account_no }}",
+            "vendor_category": "={{ $json.vendor_category }}",
+            "vendor_api_key": "={{ $json.vendor_api_key }}",
+            "status": "={{ $json.status }}",
+            "registration_date": "={{ $json.registration_date }}"
+          },
+          "matchingColumns": [
+            "vendor_id"
+          ],
+          "schema": [
+            {
+              "id": "vendor_id",
+              "displayName": "vendor_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "vendor_name",
+              "displayName": "vendor_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "vendor_api_key",
+              "displayName": "vendor_api_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contact_no",
+              "displayName": "contact_no",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "bank_name",
+              "displayName": "bank_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "account_name",
+              "displayName": "account_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "account_no",
+              "displayName": "account_no",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "vendor_category",
+              "displayName": "vendor_category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "registration_date",
+              "displayName": "registration_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        320,
+        -260
+      ],
+      "id": "580aa54e-3164-4f8a-9a5a-167bc05a1998",
+      "name": "Update Vendor Record",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Vc6pInLJ7NEfMmRR",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Extract Form Fields').item.json.email }}",
+        "subject": "=Your Vendor Profile Was Updated - {{ $('Generate Vendor ID (Deterministic)').item.json.vendor_id }}",
+        "message": "=Hello {{ $('Extract Form Fields').item.json.vendor_name }},\n\nWe received an updated submission for your vendor profile and have refreshed your details on file.\n\nVendor ID: {{ $('Generate Vendor ID (Deterministic)').item.json.vendor_id }}\n\nYour existing API key remains unchanged and does not need to be updated in any integration you already have running.\n\nIf you did not make this change, please contact our finance team immediately.\n\nRegards,\nFinance Operations Team",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        -260
+      ],
+      "id": "3313dc0e-0227-4415-9cfc-b112e21b6b1a",
+      "name": "Send Profile Updated Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "93bUD8r3KytCnhWk",
+          "name": "Gmail account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "function generateKey(length = 32) {\n  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';\n  let result = '';\n  for (let i = 0; i < length; i++) {\n    result += chars.charAt(Math.floor(Math.random() * chars.length));\n  }\n  return result;\n}\n\nreturn [{ json: { ...$json, vendor_api_key: generateKey() } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        100
+      ],
+      "id": "0d8397e4-4da0-4713-964b-a4deb6519900",
+      "name": "Generate API Key"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    ...$json,\n    status: 'Active',\n    registration_date: new Date().toISOString()\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        100
+      ],
+      "id": "c2735684-e424-4ab3-a4ed-38e32a30c352",
+      "name": "Set Registration Status"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_VENDOR_DATABASE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_VENDOR_DATABASE_SHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "vendor_id": "={{ $json.vendor_id }}",
+            "vendor_name": "={{ $json.vendor_name }}",
+            "contact_no": "={{ $json.contact_no }}",
+            "email": "={{ $json.email }}",
+            "bank_name": "={{ $json.bank_name }}",
+            "account_name": "={{ $json.account_name }}",
+            "account_no": "={{ $json.account_no }}",
+            "vendor_category": "={{ $json.vendor_category }}",
+            "vendor_api_key": "={{ $json.vendor_api_key }}",
+            "status": "={{ $json.status }}",
+            "registration_date": "={{ $json.registration_date }}"
+          },
+          "matchingColumns": [
+            "vendor_id"
+          ],
+          "schema": [
+            {
+              "id": "vendor_id",
+              "displayName": "vendor_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "vendor_name",
+              "displayName": "vendor_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "vendor_api_key",
+              "displayName": "vendor_api_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contact_no",
+              "displayName": "contact_no",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "bank_name",
+              "displayName": "bank_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "account_name",
+              "displayName": "account_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "account_no",
+              "displayName": "account_no",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "vendor_category",
+              "displayName": "vendor_category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "registration_date",
+              "displayName": "registration_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        520,
+        100
+      ],
+      "id": "3a97db34-c2f3-4c87-b5be-2bff365daf10",
+      "name": "Create Vendor Record",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Vc6pInLJ7NEfMmRR",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Extract Form Fields').item.json.email }}",
+        "subject": "=Welcome to Our Vendor Portal - Your Credentials | {{ $json.vendor_id }}",
+        "message": "=Hello {{ $('Extract Form Fields').item.json.vendor_name }},\n\nWelcome! Your vendor account has been successfully created.\n\nYour Credentials:\n* Vendor ID: {{ $json.vendor_id }}\n* API Key: {{ $json.vendor_api_key }}\n* Status: {{ $json.status }}\n* Registration Date: {{ new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' }) }}\n\nHow to Submit an Invoice:\nSend a POST request to:\n{{ $env.BASE_URL || 'http://localhost:5678' }}/webhook/invoice-intake\n\nRequest body (JSON):\n{\n  \"api_key\": \"{{ $json.vendor_api_key }}\",\n  \"vendor_id\": \"{{ $json.vendor_id }}\",\n  \"amount\": 1000,\n  \"currency\": \"USD\"\n}\n\nPlease keep your API key confidential. Do not share it with anyone.\n\nIf you have any questions, contact our finance team.\n\nRegards,\nFinance Operations Team",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        100
+      ],
+      "id": "cdd9e2d1-407b-4829-95fa-af89af530a33",
+      "name": "Send Welcome Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "93bUD8r3KytCnhWk",
+          "name": "Gmail account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_ERROR_LOG_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Errors"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "workflow": "Vendor Onboarding flow",
+            "node": "={{ $json.error?.node?.name || 'unknown' }}",
+            "timestamp": "={{ new Date().toISOString() }}",
+            "input_payload": "={{ JSON.stringify($json) }}",
+            "error_message": "={{ $json.error?.message || 'unknown error' }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        320,
+        320
+      ],
+      "id": "a652d654-6fb3-41de-8d81-19d3624e9d5d",
+      "name": "Log Error",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Vc6pInLJ7NEfMmRR",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Sheets Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Form Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Form Fields": {
+      "main": [
+        [
+          {
+            "node": "Generate Vendor ID (Deterministic)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Vendor ID (Deterministic)": {
+      "main": [
+        [
+          {
+            "node": "Check Existing Vendor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing Vendor": {
+      "main": [
+        [
+          {
+            "node": "Vendor Already Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vendor Already Exists?": {
+      "main": [
+        [
+          {
+            "node": "Reuse Existing Credentials",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate API Key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reuse Existing Credentials": {
+      "main": [
+        [
+          {
+            "node": "Update Vendor Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Vendor Record": {
+      "main": [
+        [
+          {
+            "node": "Send Profile Updated Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Profile Updated Email": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate API Key": {
+      "main": [
+        [
+          {
+            "node": "Set Registration Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Registration Status": {
+      "main": [
+        [
+          {
+            "node": "Create Vendor Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Vendor Record": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome Email": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "hardened-v2-vendor-onboarding",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "eb77dd66a3d0f3ab6dafcb0d0cfc93a07bbd3d5d1640d3c20bf0b01b61b3769f"
+  },
+  "nodeGroups": [],
+  "id": "egiSNeYu63d2nu9y",
+  "tags": []
+}

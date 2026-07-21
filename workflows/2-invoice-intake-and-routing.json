@@ -1,0 +1,1026 @@
+{
+  "name": "Automated invoice processing system (Hardened)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "invoice-intake",
+        "httpMethod": "POST",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1400,
+        -80
+      ],
+      "id": "c1d43d9a-5da0-48c5-b0bb-a5a851f97445",
+      "name": "Invoice Intake",
+      "webhookId": "c1a1e001-0000-4000-8000-000000000001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || {};\nconst errors = [];\nconst ALLOWED_CURRENCIES = ['USD', 'EUR', 'GBP', 'PKR'];\n\nconst api_key = (body.api_key || '').toString().trim();\nconst vendor_id = (body.vendor_id || '').toString().trim();\nconst amountRaw = body.amount;\nconst currency = (body.currency || '').toString().trim().toUpperCase();\n\nif (!api_key) errors.push('api_key is required');\nif (!vendor_id) errors.push('vendor_id is required');\n\nconst amount = Number(amountRaw);\nif (amountRaw === undefined || amountRaw === null || amountRaw === '') {\n  errors.push('amount is required');\n} else if (!Number.isFinite(amount)) {\n  errors.push('amount must be a valid finite number');\n} else if (amount <= 0) {\n  errors.push('amount must be greater than 0');\n} else if (amount > 10000000) {\n  errors.push('amount exceeds the maximum allowed value');\n}\n\nif (!currency) {\n  errors.push('currency is required');\n} else if (!ALLOWED_CURRENCIES.includes(currency)) {\n  errors.push(`currency must be one of: ${ALLOWED_CURRENCIES.join(', ')}`);\n}\n\nreturn [{\n  json: {\n    is_valid: errors.length === 0,\n    validation_errors: errors,\n    api_key,\n    vendor_id,\n    amount,\n    currency\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        -80
+      ],
+      "id": "31f84620-f730-4d2e-adaa-a7ea86e6e325",
+      "name": "Validate Input"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "v1",
+              "leftValue": "={{ $json.is_valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1000,
+        -80
+      ],
+      "id": "5fff2347-d8f3-408e-a6ee-6308a334dd23",
+      "name": "Is Valid?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 400,
+        "responseBody": "={{ { \"error\": \"invalid_input\", \"details\": $json.validation_errors } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -800,
+        200
+      ],
+      "id": "322a5ee3-fcd8-4725-aac0-53b4b1c5df58",
+      "name": "400 Invalid Input"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_VENDOR_DATABASE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_VENDOR_DATABASE_SHEET_ID/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "vendor_api_key",
+              "lookupValue": "={{ $json.api_key }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -800,
+        -80
+      ],
+      "id": "82323a4e-d628-45c0-bc6f-435d25a0f74e",
+      "name": "Lookup Vendor By API Key",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Vc6pInLJ7NEfMmRR",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "vf1",
+              "leftValue": "={{ $items(\"Lookup Vendor By API Key\").length }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -600,
+        -80
+      ],
+      "id": "8d1f1166-c45f-4f50-9f26-b104d9a7bfee",
+      "name": "Vendor Found?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 401,
+        "responseBody": "={{ { \"error\": \"invalid api_key or vendor_id\" } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -400,
+        200
+      ],
+      "id": "7b6461c7-6a18-496b-817d-df661dd885d8",
+      "name": "401 Unauthorized"
+    },
+    {
+      "parameters": {
+        "jsCode": "const vendor_id = $('Validate Input').item.json.vendor_id;\nconst ts = Date.now();\nconst invoice_number = `INV-${vendor_id}-${ts}`;\nreturn [{ json: { ...$json, vendor_id, invoice_number } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        -80
+      ],
+      "id": "eccc0e4b-d74b-4562-bc41-ca6aeaf2bee3",
+      "name": "Generate Invoice Number"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r1",
+              "name": "amount",
+              "value": "={{ $('Validate Input').item.json.amount }}",
+              "type": "number"
+            },
+            {
+              "id": "r2",
+              "name": "currency",
+              "value": "={{ $('Validate Input').item.json.currency }}",
+              "type": "string"
+            },
+            {
+              "id": "r3",
+              "name": "vendor_id",
+              "value": "={{ $json.vendor_id }}",
+              "type": "string"
+            },
+            {
+              "id": "r4",
+              "name": "invoice_number",
+              "value": "={{ $json.invoice_number }}",
+              "type": "string"
+            },
+            {
+              "id": "r5",
+              "name": "approval_id",
+              "value": "={{ $json.invoice_number + '-' + $json.vendor_id }}",
+              "type": "string"
+            },
+            {
+              "id": "r6",
+              "name": "risk_level",
+              "value": "={{ $('Validate Input').item.json.amount > 10000 ? 'HIGH' : ($('Validate Input').item.json.amount >= 5000 ? 'MEDIUM' : 'LOW') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -200,
+        -80
+      ],
+      "id": "c917b1ad-0677-4116-b7bf-d02f5949b732",
+      "name": "Compute Risk And Approval ID"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_INVOICES_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_INVOICES_SHEET_ID/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "vendor_id",
+              "lookupValue": "={{ $json.vendor_id }}"
+            },
+            {
+              "lookupColumn": "status",
+              "lookupValue": "pending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        0,
+        -80
+      ],
+      "id": "be2b4704-408d-4394-9f2f-545aa58d2562",
+      "name": "Lookup Pending Invoices For Vendor",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Vc6pInLJ7NEfMmRR",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "p1",
+              "leftValue": "={{ $items(\"Lookup Pending Invoices For Vendor\").length }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        200,
+        -80
+      ],
+      "id": "a06d8436-67e1-4126-bc0a-4a15dce47ae5",
+      "name": "Vendor Has Pending Invoice?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 409,
+        "responseBody": "={{ { \"error\": \"This vendor already has an invoice awaiting review. Please wait until it is resolved before submitting another.\" } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        400,
+        200
+      ],
+      "id": "7f543747-e6ce-438c-8433-78750b4f94e1",
+      "name": "409 Pending Invoice Exists"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "h1",
+              "leftValue": "={{ $json.risk_level }}",
+              "rightValue": "LOW",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        400,
+        -80
+      ],
+      "id": "0d1cdac0-cbef-4179-9866-cd02a2886d6e",
+      "name": "Needs Human Review?"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_INVOICES_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_INVOICES_SHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "vendor_id": "={{ $json.vendor_id }}",
+            "invoice_number": "={{ $json.invoice_number }}",
+            "amount": "={{ $json.amount }}",
+            "currency": "={{ $json.currency }}",
+            "status": "pending",
+            "approval_id": "={{ $json.approval_id }}",
+            "risk_level": "={{ $json.risk_level }}"
+          },
+          "matchingColumns": [
+            "approval_id"
+          ],
+          "schema": [
+            {
+              "id": "vendor_id",
+              "displayName": "vendor_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "invoice_number",
+              "displayName": "invoice_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "amount",
+              "displayName": "amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "currency",
+              "displayName": "currency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "approval_id",
+              "displayName": "approval_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "risk_level",
+              "displayName": "risk_level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        600,
+        -220
+      ],
+      "id": "57736f2c-3da5-4c1d-8328-1baf016e6437",
+      "name": "Log Pending Invoice",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Vc6pInLJ7NEfMmRR",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "hh1",
+              "leftValue": "={{ $json.risk_level }}",
+              "rightValue": "HIGH",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        -220
+      ],
+      "id": "2419deb9-f4c2-4a95-b371-89fa773b9cbe",
+      "name": "Risk = HIGH?"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $env.APPROVER_EMAIL }}",
+        "subject": "=High-Risk Invoice Requires Approval - {{ $json.invoice_number }}",
+        "message": "=Hello,\n\nA high-value invoice has been submitted and requires manager approval before payment.\n\nInvoice Details:\n* Invoice Number: {{ $json.invoice_number }}\n* Vendor ID: {{ $json.vendor_id }}\n* Amount: {{ $json.amount }} {{ $json.currency }}\n* Risk Level: {{ $json.risk_level }}\n* Approval ID: {{ $json.approval_id }}\n\nReview this invoice here:\nApprove: {{ $env.BASE_URL || 'http://localhost:5678' }}/webhook/approval?approval_id={{ $json.approval_id }}\nReject: {{ $env.BASE_URL || 'http://localhost:5678' }}/webhook/reject?approval_id={{ $json.approval_id }}\n\nRegards,\nFinance Operations Team",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        -320
+      ],
+      "id": "d993be3f-42d3-4410-b785-ce277ac4dc46",
+      "name": "Send High Risk Approval Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "93bUD8r3KytCnhWk",
+          "name": "Gmail account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $env.APPROVER_EMAIL }}",
+        "subject": "=Invoice Requires Review - {{ $json.invoice_number }}",
+        "message": "=Hello,\n\nAn invoice has been submitted and requires review before payment.\n\nInvoice Details:\n* Invoice Number: {{ $json.invoice_number }}\n* Vendor ID: {{ $json.vendor_id }}\n* Amount: {{ $json.amount }} {{ $json.currency }}\n* Risk Level: {{ $json.risk_level }}\n* Approval ID: {{ $json.approval_id }}\n\nReview this invoice here:\nApprove: {{ $env.BASE_URL || 'http://localhost:5678' }}/webhook/approval?approval_id={{ $json.approval_id }}\nReject: {{ $env.BASE_URL || 'http://localhost:5678' }}/webhook/reject?approval_id={{ $json.approval_id }}\n\nRegards,\nFinance Operations Team",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        -120
+      ],
+      "id": "271f23d2-60cb-4942-8019-3e12326b210d",
+      "name": "Send Medium Risk Approval Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "93bUD8r3KytCnhWk",
+          "name": "Gmail account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 200,
+        "responseBody": "={{ { \"status\": \"pending\", \"message\": \"Invoice received and is awaiting manager approval.\", \"approval_id\": $json.approval_id } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1200,
+        -220
+      ],
+      "id": "7f3b8053-416c-4484-8751-9fe758c021a3",
+      "name": "200 Awaiting Approval"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $env.APPROVER_EMAIL }}",
+        "subject": "=Invoice Auto-Approved - {{ $json.invoice_number }}",
+        "message": "=Hello,\n\nA low-risk invoice was automatically approved.\n\nInvoice Details:\n* Invoice Number: {{ $json.invoice_number }}\n* Vendor ID: {{ $json.vendor_id }}\n* Amount: {{ $json.amount }} {{ $json.currency }}\n* Status: AUTO-APPROVED\n\nRegards,\nFinance Operations Team",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        600,
+        100
+      ],
+      "id": "0aa073d7-65a7-41c8-b33c-f434a729aaca",
+      "name": "Send Auto-Approved Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "93bUD8r3KytCnhWk",
+          "name": "Gmail account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_APPROVED_INVOICES_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_APPROVED_INVOICES_SHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "vendor_id": "={{ $json.vendor_id }}",
+            "invoice_number": "={{ $json.invoice_number }}",
+            "amount": "={{ $json.amount }}",
+            "currency": "={{ $json.currency }}",
+            "status": "auto-approved",
+            "timestamp": "={{ new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' }) }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        800,
+        100
+      ],
+      "id": "f6ed8a2a-8f53-4091-8c4d-60ab7501b5cd",
+      "name": "Log Approved Invoice",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Vc6pInLJ7NEfMmRR",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 200,
+        "responseBody": "={{ { \"status\": \"approved\", \"message\": \"Invoice auto-approved.\", \"invoice_number\": $json.invoice_number } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1000,
+        100
+      ],
+      "id": "cbc6bb66-12f7-480d-b68c-d87c6a89f115",
+      "name": "200 Auto-Approved"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_ERROR_LOG_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Errors"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "workflow": "Automated invoice processing system",
+            "node": "={{ $json.error?.node?.name || 'unknown' }}",
+            "timestamp": "={{ new Date().toISOString() }}",
+            "input_payload": "={{ JSON.stringify($json) }}",
+            "error_message": "={{ $json.error?.message || 'unknown error' }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        400,
+        420
+      ],
+      "id": "bfb47ace-31cf-4ebd-b8da-2c66fb702d36",
+      "name": "Log Error",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Vc6pInLJ7NEfMmRR",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 500,
+        "responseBody": "={{ { \"error\": \"internal_error\", \"message\": \"Something went wrong processing this invoice. Please retry in a moment.\" } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        600,
+        420
+      ],
+      "id": "7213ff6b-4fef-47ee-902d-186fca135f2e",
+      "name": "500 Internal Error"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Invoice Intake": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Lookup Vendor By API Key",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "400 Invalid Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Vendor By API Key": {
+      "main": [
+        [
+          {
+            "node": "Vendor Found?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vendor Found?": {
+      "main": [
+        [
+          {
+            "node": "Generate Invoice Number",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "401 Unauthorized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Invoice Number": {
+      "main": [
+        [
+          {
+            "node": "Compute Risk And Approval ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Risk And Approval ID": {
+      "main": [
+        [
+          {
+            "node": "Lookup Pending Invoices For Vendor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Pending Invoices For Vendor": {
+      "main": [
+        [
+          {
+            "node": "Vendor Has Pending Invoice?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vendor Has Pending Invoice?": {
+      "main": [
+        [
+          {
+            "node": "409 Pending Invoice Exists",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Needs Human Review?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Human Review?": {
+      "main": [
+        [
+          {
+            "node": "Log Pending Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Auto-Approved Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Pending Invoice": {
+      "main": [
+        [
+          {
+            "node": "Risk = HIGH?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risk = HIGH?": {
+      "main": [
+        [
+          {
+            "node": "Send High Risk Approval Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Medium Risk Approval Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send High Risk Approval Email": {
+      "main": [
+        [
+          {
+            "node": "200 Awaiting Approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Medium Risk Approval Email": {
+      "main": [
+        [
+          {
+            "node": "200 Awaiting Approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Auto-Approved Email": {
+      "main": [
+        [
+          {
+            "node": "Log Approved Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Approved Invoice": {
+      "main": [
+        [
+          {
+            "node": "200 Auto-Approved",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "500 Internal Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "hardened-v2-invoice-processing",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "eb77dd66a3d0f3ab6dafcb0d0cfc93a07bbd3d5d1640d3c20bf0b01b61b3769f"
+  },
+  "nodeGroups": [],
+  "id": "0jyaOaCQeQNKZQ7Y",
+  "tags": []
+}

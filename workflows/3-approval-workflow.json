@@ -1,0 +1,873 @@
+{
+  "name": "approval_workflow (Hardened)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "approval",
+        "httpMethod": "GET",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1200,
+        -300
+      ],
+      "id": "e0a28c1a-542c-4b55-854f-047324e1514d",
+      "name": "Approval Confirm Page",
+      "webhookId": "ap-page-001"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_INVOICES_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_INVOICES_SHEET_ID/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "approval_id",
+              "lookupValue": "={{ $json.query.approval_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1000,
+        -300
+      ],
+      "id": "c1e93eef-1ae8-4bb8-8455-eabade20d2fb",
+      "name": "Lookup Invoice (Page)",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Vc6pInLJ7NEfMmRR",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "f1",
+              "leftValue": "={{ $items(\"Lookup Invoice (Page)\").length }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -800,
+        -300
+      ],
+      "id": "9513a2a6-da38-451e-8fdc-f315e18086c2",
+      "name": "Invoice Found? (Page)"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseCode": 404,
+        "responseBody": "=<html><body><h2>Link not found</h2><p>This approval link is invalid or has expired.</p></body></html>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -600,
+        -100
+      ],
+      "id": "019b083d-aae0-45ca-9a9c-7d17ed03ac34",
+      "name": "404 Not Found (Page)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "np1",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "pending",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -600,
+        -300
+      ],
+      "id": "40bc2ce4-19c5-41a0-a603-1c6da0edb1fe",
+      "name": "Already Processed? (Page)"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseCode": 200,
+        "responseBody": "=<html><body><h2>Already processed</h2><p>This invoice was already marked <b>{{ $json.status }}</b>. No further action is needed.</p></body></html>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -400,
+        -100
+      ],
+      "id": "fefbf19d-f320-4921-a17d-aecd6bd3928a",
+      "name": "Already Processed Notice (Page)"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseCode": 200,
+        "responseBody": "=<html><body><h2>Approve Invoice {{ $json.invoice_number }}</h2><p>Vendor: {{ $json.vendor_id }}<br>Amount: {{ $json.amount }} {{ $json.currency }}<br>Risk: {{ $json.risk_level }}</p><form method=\"POST\" action=\"{{ $env.BASE_URL || 'http://localhost:5678' }}/webhook/approval-confirm\"><input type=\"hidden\" name=\"approval_id\" value=\"{{ $json.approval_id }}\"><button type=\"submit\">Confirm Approval</button></form></body></html>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -400,
+        -500
+      ],
+      "id": "6c0dcb51-52dc-4331-8a77-8efa3e0c9e37",
+      "name": "Confirmation Page"
+    },
+    {
+      "parameters": {
+        "path": "approval-confirm",
+        "httpMethod": "POST",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1200,
+        100
+      ],
+      "id": "c133367d-6414-4c29-b4f8-7c96c5d3e267",
+      "name": "Approval Action",
+      "webhookId": "ap-action-001"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_INVOICES_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_INVOICES_SHEET_ID/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "approval_id",
+              "lookupValue": "={{ $json.body.approval_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1000,
+        100
+      ],
+      "id": "27d78a87-060a-43e7-bc44-1c749b7805a2",
+      "name": "Lookup Invoice (Confirm)",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Vc6pInLJ7NEfMmRR",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "f1",
+              "leftValue": "={{ $items(\"Lookup Invoice (Confirm)\").length }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -800,
+        100
+      ],
+      "id": "374d8c67-045b-4984-9539-44f2a1479122",
+      "name": "Invoice Found? (Confirm)"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseCode": 404,
+        "responseBody": "=<html><body><h2>Link not found</h2><p>This approval link is invalid or has expired.</p></body></html>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -600,
+        300
+      ],
+      "id": "f758cbd9-d189-4150-a278-23d43c1971f3",
+      "name": "404 Not Found (Confirm)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "np1",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "pending",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -600,
+        100
+      ],
+      "id": "d38c2c29-4f94-44a5-8c47-1f38e1b639d1",
+      "name": "Already Processed? (Confirm)"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseCode": 200,
+        "responseBody": "=<html><body><h2>Already processed</h2><p>This invoice was already marked <b>{{ $json.status }}</b>. No action was taken.</p></body></html>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -400,
+        300
+      ],
+      "id": "89c33359-e2dc-4181-9773-70a41af5d88a",
+      "name": "Already Processed Notice (Confirm)"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_INVOICES_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_INVOICES_SHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "approved",
+            "approval_id": "={{ $json.approval_id }}"
+          },
+          "matchingColumns": [
+            "approval_id"
+          ],
+          "schema": [
+            {
+              "id": "vendor_id",
+              "displayName": "vendor_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "invoice_number",
+              "displayName": "invoice_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "amount",
+              "displayName": "amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "currency",
+              "displayName": "currency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "approval_id",
+              "displayName": "approval_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "risk_level",
+              "displayName": "risk_level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -400,
+        -20
+      ],
+      "id": "404ade93-902c-4813-a1d4-2075bb145792",
+      "name": "Update Invoice To Approved",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Vc6pInLJ7NEfMmRR",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $env.APPROVER_EMAIL }}",
+        "subject": "=Invoice Approved - {{ $('Lookup Invoice (Confirm)').item.json.invoice_number }}",
+        "message": "=Hello,\n\nInvoice has been reviewed and approved.\n\nInvoice Details:\n* Invoice Number: {{ $('Lookup Invoice (Confirm)').item.json.invoice_number }}\n* Vendor ID: {{ $('Lookup Invoice (Confirm)').item.json.vendor_id }}\n* Amount: {{ $('Lookup Invoice (Confirm)').item.json.amount }} {{ $('Lookup Invoice (Confirm)').item.json.currency }}\n* Approval ID: {{ $('Lookup Invoice (Confirm)').item.json.approval_id }}\n* Status: APPROVED\n\nThe invoice has been forwarded for payment processing.\n\nRegards,\nFinance Operations Team",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -200,
+        -20
+      ],
+      "id": "934cb503-fcfb-450e-a701-842186bdd5a5",
+      "name": "Send Approval Confirmation To Vendor",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "93bUD8r3KytCnhWk",
+          "name": "Gmail account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_APPROVED_INVOICES_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_APPROVED_INVOICES_SHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "vendor_id": "={{ $('Lookup Invoice (Confirm)').item.json.vendor_id }}",
+            "invoice_number": "={{ $('Lookup Invoice (Confirm)').item.json.invoice_number }}",
+            "amount": "={{ $('Lookup Invoice (Confirm)').item.json.amount }}",
+            "currency": "={{ $('Lookup Invoice (Confirm)').item.json.currency }}",
+            "status": "approved",
+            "timestamp": "={{ new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' }) }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        0,
+        -20
+      ],
+      "id": "c22624eb-e25f-407d-80cc-d206a6d991bb",
+      "name": "Log Approved Invoice",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Vc6pInLJ7NEfMmRR",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseCode": 200,
+        "responseBody": "=<html><body><h2>Approved</h2><p>Invoice {{ $('Lookup Invoice (Confirm)').item.json.invoice_number }} has been approved and the vendor notified.</p></body></html>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        200,
+        -20
+      ],
+      "id": "2eb62f5b-670f-4e1d-9808-9a8cad70146c",
+      "name": "200 Approved Successfully"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_ERROR_LOG_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Errors"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "workflow": "approval_workflow",
+            "node": "={{ $json.error?.node?.name || 'unknown' }}",
+            "timestamp": "={{ new Date().toISOString() }}",
+            "input_payload": "={{ JSON.stringify($json) }}",
+            "error_message": "={{ $json.error?.message || 'unknown error' }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        0,
+        500
+      ],
+      "id": "59e5c03b-06b9-40ed-bc7a-a802d2982a23",
+      "name": "Log Error",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Vc6pInLJ7NEfMmRR",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseCode": 500,
+        "responseBody": "=<html><body><h2>Something went wrong</h2><p>Please try again in a moment, or contact finance if this persists.</p></body></html>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        200,
+        500
+      ],
+      "id": "a0ca0fbd-e8b0-438b-b774-acbbda6bdf79",
+      "name": "500 Internal Error"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Approval Confirm Page": {
+      "main": [
+        [
+          {
+            "node": "Lookup Invoice (Page)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Invoice (Page)": {
+      "main": [
+        [
+          {
+            "node": "Invoice Found? (Page)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Invoice Found? (Page)": {
+      "main": [
+        [
+          {
+            "node": "Already Processed? (Page)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "404 Not Found (Page)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already Processed? (Page)": {
+      "main": [
+        [
+          {
+            "node": "Already Processed Notice (Page)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Confirmation Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Action": {
+      "main": [
+        [
+          {
+            "node": "Lookup Invoice (Confirm)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Invoice (Confirm)": {
+      "main": [
+        [
+          {
+            "node": "Invoice Found? (Confirm)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Invoice Found? (Confirm)": {
+      "main": [
+        [
+          {
+            "node": "Already Processed? (Confirm)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "404 Not Found (Confirm)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already Processed? (Confirm)": {
+      "main": [
+        [
+          {
+            "node": "Already Processed Notice (Confirm)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Invoice To Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Invoice To Approved": {
+      "main": [
+        [
+          {
+            "node": "Send Approval Confirmation To Vendor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Approval Confirmation To Vendor": {
+      "main": [
+        [
+          {
+            "node": "Log Approved Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Approved Invoice": {
+      "main": [
+        [
+          {
+            "node": "200 Approved Successfully",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "500 Internal Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "hardened-v2-approval",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "eb77dd66a3d0f3ab6dafcb0d0cfc93a07bbd3d5d1640d3c20bf0b01b61b3769f"
+  },
+  "nodeGroups": [],
+  "id": "ItiJGGz5B7X3OXqj",
+  "tags": []
+}

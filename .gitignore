@@ -1,0 +1,11 @@
+# Environment secrets — never commit real values
+.env
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+
+# Local n8n exports/logs if you keep this repo inside an n8n data folder
+.n8n/
+n8n-logs/
