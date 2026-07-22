@@ -8,6 +8,8 @@ Built and hardened as a portfolio piece to demonstrate production-grade n8n
 workflow design: input validation, idempotency, error handling, and secure
 action links, not just a happy-path demo.
 
+**🎥 Demo:** [Watch the full system in action — vendor onboarding through invoice approval](https://www.loom.com/share/2eb859b3d44a4dbe9fe7d3d5b3a9677a)
+
 ---
 
 ## What it does
@@ -60,6 +62,28 @@ flowchart TD
 | 2 | `workflows/2-invoice-intake-and-routing.json` | Webhook `POST /invoice-intake` | Validates input, authenticates by API key, scores risk (LOW/MEDIUM/HIGH), auto-approves or routes to review |
 | 3 | `workflows/3-approval-workflow.json` | Webhook `GET /approval`, `POST /approval-confirm` | Renders a confirmation page, then applies the approval on explicit confirmation |
 | 4 | `workflows/4-reject-workflow.json` | Webhook `GET /reject`, `POST /reject-confirm` | Same pattern as above, for rejection |
+
+## Screenshots
+
+**1. Vendor Onboarding** — deterministic ID generation, existing-vendor
+reuse path, and the error-logging branch:
+
+![Vendor onboarding workflow](screenshots/1-vendor-onboarding.png)
+
+**2. Invoice Intake & Risk Routing** — validation, vendor lookup, risk
+scoring, and the LOW/MEDIUM/HIGH branch into auto-approval or reviewer
+email:
+
+![Invoice intake and routing workflow](screenshots/2-invoice-intake-and-routing.png)
+
+**3. Approval Workflow** — the GET-render / POST-confirm split and the
+already-processed guard:
+
+![Approval workflow](screenshots/3-approval-workflow.png)
+
+**4. Reject Workflow** — same hardened pattern applied to rejection:
+
+![Reject workflow](screenshots/4-reject-workflow.png)
 
 ## Engineering highlights
 
