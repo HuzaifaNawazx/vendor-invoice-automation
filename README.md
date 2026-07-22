@@ -7,6 +7,8 @@ finance team's side.
 Built and hardened as a portfolio piece to demonstrate production-grade n8n
 workflow design: input validation, idempotency, error handling, and secure
 action links, not just a happy-path demo.
+🎥 Demo: Watch the full system in action — vendor onboarding through invoice approval
+https://www.loom.com/share/2eb859b3d44a4dbe9fe7d3d5b3a9677a
 
 **🎥 Demo:** [Watch the full system in action — vendor onboarding through invoice approval](https://www.loom.com/share/2eb859b3d44a4dbe9fe7d3d5b3a9677a)
 
